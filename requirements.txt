@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+httpx
+python-multipart
+playwright
+pydantic
+python-dateutil
+rfc3339
+edge-tts
+openai

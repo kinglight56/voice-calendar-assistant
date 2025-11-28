@@ -1,0 +1,15 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# Virtual env
+.venv/
+venv/
+
+# Editor settings
+.vscode/
+.idea/
+
+# 临时文件
+backend/tmp/
+*.log
