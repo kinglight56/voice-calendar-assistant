@@ -1,0 +1,14 @@
+# speech/asr.py
+import tempfile
+from pathlib import Path
+
+def transcribe_audio_bytes(data: bytes) -> str:
+    """
+    测试用：固定返回可被 NLP 解析的句子。
+    必须包含“明天 + 时间段”。
+    """
+    tmp = Path(tempfile.gettempdir()) / 'upload_audio.wav'
+    tmp.write_bytes(data)
+
+    # 注意：此句非常重要！ NLP 必须要“明天 + 时间”
+    return '明天上午十点到十一点和公司 CEO 开会'
