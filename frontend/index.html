@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>语音驱动的 Google 日程助手</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --bg: #050816;
+      --card-bg: #111827;
+      --accent: #22c55e;
+      --accent-soft: rgba(34, 197, 94, 0.2);
+      --danger: #f97373;
+      --text-main: #f9fafb;
+      --text-sub: #9ca3af;
+      --border: #1f2937;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui,
+        "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: radial-gradient(circle at top, #111827 0, #020617 40%, #000 100%);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 960px;
+      padding: 32px 20px;
+    }
+
+    h1 {
+      margin: 0 0 24px;
+      font-size: 32px;
+      letter-spacing: 1px;
+      text-shadow: 0 0 16px rgba(34, 197, 94, 0.4);
+    }
+
+    .card {
+      background: linear-gradient(145deg, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.98));
+      border-radius: 20px;
+      padding: 20px 20px 24px;
+      border: 1px solid var(--border);
+      box-shadow: 0 18px 45px rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(12px);
+    }
+
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+      color: var(--text-sub);
+      margin-bottom: 12px;
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: var(--accent);
+      box-shadow: 0 0 8px var(--accent);
+    }
+    .status-dot.busy {
+      background: #fbbf24;
+      box-shadow: 0 0 8px #fbbf24;
+    }
+    .status-dot.error {
+      background: var(--danger);
+      box-shadow: 0 0 8px var(--danger);
+    }
+
+    .log {
+      background: rgba(15, 23, 42, 0.9);
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      padding: 12px 14px;
+      max-height: 360px;
+      overflow-y: auto;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .line {
+      margin-bottom: 6px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .line.system {
+      color: var(--text-sub);
+      font-size: 13px;
+    }
+
+    .line.user::before {
+      content: "你：";
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .line.bot::before {
+      content: "助手：";
+      color: #60a5fa;
+      font-weight: 600;
+    }
+
+    .controls {
+      margin-top: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      border-radius: 999px;
+      border: none;
+      padding: 10px 18px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.18s ease;
+      background: transparent;
+      color: var(--text-main);
+      border: 1px solid var(--border);
+    }
+
+    .btn.primary {
+      background: var(--accent);
+      color: #022c22;
+      border-color: transparent;
+      box-shadow: 0 12px 25px rgba(34, 197, 94, 0.45);
+    }
+
+    .btn.primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 16px 35px rgba(34, 197, 94, 0.55);
+    }
+
+    .btn:disabled,
+    .btn.disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      box-shadow: none;
+      transform: none;
+    }
+
+    .mic-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .mic-btn {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      border: none;
+      background: radial-gradient(circle at 30% 30%, #4ade80, #22c55e);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      position: relative;
+      box-shadow: 0 10px 22px rgba(34, 197, 94, 0.55);
+      transition: all 0.2s ease;
+    }
+
+    .mic-btn.disabled {
+      filter: grayscale(0.6);
+      opacity: 0.6;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    .mic-btn .mic-icon {
+      width: 22px;
+      height: 32px;
+      border-radius: 11px;
+      border: 2px solid #022c22;
+      border-bottom-width: 5px;
+      position: relative;
+      background: #f9fafb;
+    }
+
+    .mic-btn .mic-icon::before {
+      /* 上半部圆球 */
+      content: "";
+      position: absolute;
+      top: 3px;
+      left: 4px;
+      right: 4px;
+      height: 13px;
+      border-radius: 999px;
+      background: #0f172a;
+    }
+
+    .mic-btn .mic-icon::after {
+      /* 底下小竖杆 */
+      content: "";
+      position: absolute;
+      bottom: -7px;
+      left: 50%;
+      width: 12px;
+      height: 6px;
+      border-radius: 999px;
+      transform: translateX(-50%);
+      background: #f9fafb;
+    }
+
+    .mic-btn.recording {
+      background: radial-gradient(circle at 30% 30%, #fb7171, #ef4444);
+      box-shadow:
+        0 0 0 0 rgba(239, 68, 68, 0.7),
+        0 10px 30px rgba(239, 68, 68, 0.7);
+      animation: pulse 1.3s infinite;
+    }
+
+    @keyframes pulse {
+      0% {
+        box-shadow:
+          0 0 0 0 rgba(239, 68, 68, 0.7),
+          0 10px 30px rgba(239, 68, 68, 0.7);
+      }
+      70% {
+        box-shadow:
+          0 0 0 18px rgba(239, 68, 68, 0),
+          0 10px 30px rgba(239, 68, 68, 0.6);
+      }
+      100% {
+        box-shadow:
+          0 0 0 0 rgba(239, 68, 68, 0),
+          0 10px 30px rgba(239, 68, 68, 0.3);
+      }
+    }
+
+    .mic-tip {
+      font-size: 12px;
+      color: var(--text-sub);
+      max-width: 260px;
+    }
+
+    @media (max-width: 600px) {
+      h1 {
+        font-size: 24px;
+      }
+      .controls {
+        flex-direction: column-reverse;
+        align-items: flex-start;
+      }
+      .mic-container {
+        width: 100%;
+        justify-content: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <h1>语音驱动的 Google 日程助手</h1>
+
+    <div class="card">
+      <div class="status-bar">
+        <span id="statusDot" class="status-dot"></span>
+        <span id="statusText">点击「开始会话」获取开场白，然后用语音跟我说。</span>
+      </div>
+
+      <div id="log" class="log"></div>
+
+      <div class="controls">
+        <button id="startBtn" class="btn primary">
+          ▶ 开始会话
+        </button>
+
+        <div class="mic-container">
+          <button id="micBtn" class="mic-btn disabled" disabled title="点击开始录音，再次点击结束">
+            <div class="mic-icon"></div>
+          </button>
+          <div class="mic-tip">
+            点击绿色麦克风开始录音，再次点击结束并上传识别。
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const logEl = document.getElementById("log");
+    const statusDot = document.getElementById("statusDot");
+    const statusText = document.getElementById("statusText");
+    const startBtn = document.getElementById("startBtn");
+    const micBtn = document.getElementById("micBtn");
+
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let isRecording = false;
+    let hasStartedConversation = false;
+    let micStream = null;
+
+    function appendLine(text, type = "system") {
+      const div = document.createElement("div");
+      div.className = `line ${type}`;
+      div.textContent = text;
+      logEl.appendChild(div);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function setStatus(text, mode = "idle") {
+      statusText.textContent = text;
+      statusDot.classList.remove("busy", "error");
+      if (mode === "busy") statusDot.classList.add("busy");
+      if (mode === "error") statusDot.classList.add("error");
+    }
+
+    function speak(text) {
+      if (!("speechSynthesis" in window)) {
+        console.warn("浏览器不支持 speechSynthesis，跳过语音播报");
+        return;
+      }
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = "zh-CN";
+      u.rate = 1.05;
+      window.speechSynthesis.speak(u);
+    }
+
+    async function startConversation() {
+      if (hasStartedConversation) {
+        // 重新开始新会话：清空历史
+        logEl.innerHTML = "";
+      }
+      hasStartedConversation = true;
+
+      appendLine("=== 会话开始 ===", "system");
+      setStatus("正在获取开场白...", "busy");
+
+      try {
+        const res = await fetch("/api/start", { method: "POST" });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+
+        const text =
+          data.text ||
+          data.message ||
+          data.bot ||
+          "您好，我是您的日程助手，你想记录什么日程？";
+
+        appendLine(text, "bot");
+        speak(text);
+        setStatus("已准备就绪：点击麦克风开始录音，再点一次结束。", "idle");
+
+        // 激活麦克风按钮
+        micBtn.disabled = false;
+        micBtn.classList.remove("disabled");
+      } catch (err) {
+        console.error(err);
+        appendLine("获取开场白失败：" + err.message, "system");
+        setStatus("开场白获取失败，但你仍然可以直接点麦克风录音。", "error");
+        micBtn.disabled = false;
+        micBtn.classList.remove("disabled");
+      }
+    }
+
+    async function ensureMicStream() {
+      if (micStream) return micStream;
+      try {
+        micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        return micStream;
+      } catch (err) {
+        console.error(err);
+        appendLine("获取麦克风权限失败：" + err.message, "system");
+        setStatus("麦克风不可用，请检查浏览器权限设置。", "error");
+        throw err;
+      }
+    }
+
+    async function startRecording() {
+      await ensureMicStream();
+      audioChunks = [];
+      const options = MediaRecorder.isTypeSupported("audio/webm")
+        ? { mimeType: "audio/webm" }
+        : undefined;
+
+      mediaRecorder = new MediaRecorder(micStream, options);
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunks.push(e.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        const blob = new Blob(audioChunks, { type: "audio/webm" });
+        await sendAudioToBackend(blob);
+      };
+
+      mediaRecorder.start();
+      isRecording = true;
+      micBtn.classList.add("recording");
+      setStatus("正在录音中，再次点击麦克风结束录音。", "busy");
+      appendLine("🎙️ 正在录音，请开始说话…", "system");
+    }
+
+    function stopRecording() {
+      if (mediaRecorder && isRecording) {
+        mediaRecorder.stop();
+      }
+      isRecording = false;
+      micBtn.classList.remove("recording");
+      setStatus("录音结束，正在上传并识别…", "busy");
+    }
+
+    async function sendAudioToBackend(blob) {
+      appendLine("⏫ 已上传一段语音，等待识别...", "system");
+      const formData = new FormData();
+      // 这里字段名用 "file"；如果你后端参数叫 "audio" 就改成 "audio"
+      formData.append("file", blob, "speech.webm");
+
+      try {
+        const res = await fetch("/api/speech", {
+          method: "POST",
+          body: formData,
+        });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+
+        const userText =
+          data.user_text ||
+          data.recognized_text ||
+          data.transcript ||
+          "（语音内容）";
+
+        const reply =
+          data.assistant_reply ||
+          data.reply ||
+          data.message ||
+          "我这边没有拿到回复，请稍后再试一次。";
+
+        appendLine(userText, "user");
+        appendLine(reply, "bot");
+        speak(reply);
+        setStatus("可以继续说下一句，或关闭页面结束对话。", "idle");
+      } catch (err) {
+        console.error(err);
+        appendLine("语音识别或日程创建失败：" + err.message, "system");
+        setStatus("出错了，可以稍后再点麦克风重试。", "error");
+      }
+    }
+
+    startBtn.addEventListener("click", () => {
+      startConversation();
+    });
+
+    micBtn.addEventListener("click", async () => {
+      if (micBtn.disabled) return;
+      if (!isRecording) {
+        await startRecording();
+      } else {
+        stopRecording();
+      }
+    });
+  </script>
+</body>
+</html>
